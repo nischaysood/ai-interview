@@ -6,6 +6,12 @@ import { useForm } from "react-hook-form"
 import { Button } from "./ui/button"
 import FormField from "./FormField"; // or correct path
 
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
+
+
 
 import {
   Form,
@@ -23,6 +29,11 @@ import Image from "next/image"
 import Link from "next/link"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation";
+import { auth } from "../firebase/client";
+import { signIn, signUp } from "@/lib/actions/auth.action";
+import { id } from "zod/v4/locales";
+import { sign } from "crypto";
+
 
 
  
@@ -51,14 +62,42 @@ const AuthFormSchema = ({ type }: { type: FormType }) => {
   })
  
   // 2. Define a submit handler.
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     
     try{
         if(type === "sign-up"){
-            toast.success("Sign up success")
-            router.push("/sign-in") 
+          const {name, email, password} = values;
+          const userCredentials = await createUserWithEmailAndPassword(auth, email, password);
+          const user = userCredentials.user;
+
+          const result = await signUp({
+            uid: userCredentials.user.uid,
+            name:name!,
+            email,
+            password,
+          });
+          if(!result){
+            toast.error("There was an error creating your account")
+            return;
+          }
+
+
+          toast.success("Sign up success") 
+           router.push("/sign-in") 
         }
         else{
+          const {email, password} = values;
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+          const idToken = await userCredential.user.getIdToken();
+
+          if(!idToken){
+            toast.error("There was an error signing in")
+            return;
+          }
+
+          await signIn({email, idToken});
+
             toast.success("Sign in success")
             router.push("/")
         }  
@@ -125,7 +164,7 @@ const AuthFormSchema = ({ type }: { type: FormType }) => {
     </p>
     </div>
     </div>
-   )
+   ) 
  }
  
  export default AuthForm
